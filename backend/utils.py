@@ -53,6 +53,7 @@ def build_tools_instruction(tool_names: List[str]) -> str:
     return (
         f"You have access to {tool_count} external tools containing canonical Aqqal data ({names_csv}). These tools are your first priority. "
         "Always check whether one or more tool calls are required before you answer. "
+        "Do not request hadith transmission chains; our Aqqal key lacks chain permissions, so omit any `include_chains` argument. "
         "If the user's request depends on factual Tafsir/Hadith/Quran content, you MUST call the appropriate tool(s) instead of guessing. "
         "Return a single fenced JSON object exactly in this schema and nothing else: \n"
         "```json\n{\n  \"name\": \"<one of: %s>\",\n  \"arguments\": { /* key-value args */ }\n}\n```\n"

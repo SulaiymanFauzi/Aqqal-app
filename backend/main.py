@@ -258,6 +258,35 @@ async def chat(body: ChatRequest):
 
                 tools_used.append(name)
 
+                if isinstance(tool_result, dict) and not tool_result.get("ok"):
+                    status_code = tool_result.get("status")
+                    failure_payload = tool_result.get("response_text") or tool_result.get("error")
+                    print("[tools] failure payload:", failure_payload)
+
+                    # Some Aqqal endpoints reject include_chains=False; retry without that key.
+                    if status_code in {401, 403} and "include_chains" in (arguments or {}):
+                        retry_args = dict(arguments)
+                        retry_args.pop("include_chains", None)
+                        try:
+                            print("[tools] retrying without include_chains", retry_args)
+                            tool_result_retry = await execute_tool(name, retry_args)
+                            retry_ok = tool_result_retry.get("ok") if isinstance(tool_result_retry, dict) else None
+                            retry_status = tool_result_retry.get("status") if isinstance(tool_result_retry, dict) else None
+                            print(f"[tools] retry result ok={retry_ok} status={retry_status}")
+                            if isinstance(tool_result_retry, dict) and tool_result_retry.get("ok"):
+                                tool_result = tool_result_retry
+                                arguments = retry_args
+                                status_code = None
+                        except Exception as retry_exc:
+                            print("[tools] retry error", retry_exc)
+
+                if isinstance(tool_result, dict) and tool_result.get("status") in {401, 403}:
+                    auth_message = (
+                        "⚠️ The configured Aqqal API key is not authorized to access this data. "
+                        "Please supply a key with chained hadith and keyword search permissions."
+                    )
+                    return ChatResponse(model=model_name, text=auth_message, tools_used=tools_used or None)
+
                 # Provide tool response back to the model
                 contents_with_tool = contents + [
                     {

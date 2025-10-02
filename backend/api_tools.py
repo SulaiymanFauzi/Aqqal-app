@@ -3,7 +3,11 @@ import re
 import inspect
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 
+from dotenv import load_dotenv
+
 import httpx
+
+load_dotenv()
 
 # Base URLs and credentials from environment (with safe defaults)
 AQQAL_API_BASE = os.getenv("AQQAL_API_BASE", "https://api.aqqal.com")
@@ -13,8 +17,17 @@ AQQAL_API_KEY = os.getenv("AQQAL_API_KEY")
 AQQAL_API_KEY_HEADER = os.getenv("AQQAL_API_KEY_HEADER", "Authorization")
 AQQAL_API_KEY_PREFIX = os.getenv("AQQAL_API_KEY_PREFIX", "Bearer")
 
+# Common Hadith book aliases -> canonical titles expected by Aqqal API
+BOOK_TITLE_ALIASES: Dict[str, str] = {
+    "sahih bukhari": "Sahih Bukhari",
+    "sahih-bukhari": "Sahih Bukhari",
+    "bukhari": "Sahih Bukhari",
+    "sahih muslim": "Sahih Muslim",
+    "sahih-muslim": "Sahih Muslim",
+    "muslim": "Sahih Muslim",
+}
+
 # Aqqal semanticSearch credentials
-AQQAL_SEMANTIC_APIKEY = os.getenv("AQQAL_SEMANTIC_APIKEY")
 AQQAL_SEMANTIC_SERVICE_ACCOUNT = os.getenv("AQQAL_SEMANTIC_SERVICE_ACCOUNT", "aqqal")
 
 # Timeouts
@@ -127,15 +140,17 @@ async def search_hadith(
 ) -> Any:
     url = f"{AQQAL_API_BASE}/library/hadiths/search"
     params: Dict[str, Any] = {}
-    if include_chains is not None:
-        params["include_chains"] = bool(include_chains)
+    # Current API key lacks chain permissions; ignore include_chains to match CLI behavior.
+    include_chains = False
     body: Dict[str, Any] = {}
     if text_en:
         body["text_en"] = text_en
     if top_narrator:
         body["top_narrator"] = top_narrator
     if book:
-        body["book"] = book
+        canonical_book = BOOK_TITLE_ALIASES.get(book.strip().lower(), book)
+        body["book"] = canonical_book
+    print("[api_tools] POST body", body, "params", params)
     return await _request_json("POST", url, params=params, json_body=body, headers=_aqqal_headers())
 
 
