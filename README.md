@@ -15,6 +15,7 @@ Full-stack Expo + FastAPI experience designed around the Aqqal chat assistant.
 - Yarn 1.x (this repo pins `yarn@1.22.22`)
 - Python 3.10+
 - Google AI Studio / Gemini API key
+- Xcode (with Command Line Tools) for running the iOS simulator
 
 ## 1. Clone & Install
 ```bash
@@ -59,8 +60,12 @@ For Android emulators use `http://10.0.2.2:8000`; for physical devices, use your
 ```bash
 # from repo root
 yarn start
+
+# or launch the iOS simulator directly
+npm run ios
 ```
-- Press `i` for iOS Simulator, `a` for Android, `w` for web.
+- Press `i` for iOS Simulator, `a` for Android, `w` for web when using the Expo CLI prompt.
+- `npm run ios` compiles and opens the iOS simulator in one step once Xcode is installed.
 - Update `API_BASE_URL` in `utils/api.ts` if the backend runs on a different host.
 
 ### Chat UI Highlights
