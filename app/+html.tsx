@@ -20,6 +20,11 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
+
+        {/* Aqqal font (web only) */}
+        <link rel="stylesheet" href="https://aqqal.com/_assets/static_font_4.ltr.css" />
+        {/* Set global font-family to match the site */}
+        <style dangerouslySetInnerHTML={{ __html: fontCss }} />
         {/* Add any additional <head> elements that you want globally available on web... */}
       </head>
       <body>{children}</body>
@@ -36,3 +41,9 @@ body {
     background-color: #000;
   }
 }`;
+
+const fontCss = `
+  html, body {
+    font-family: "Canva Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  }
+`;
