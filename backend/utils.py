@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from google.genai import types as genai_types
@@ -8,6 +9,21 @@ from api_tools import get_function_declarations_json
 
 
 _FUNCTION_DECLARATIONS_CACHE: Optional[List[genai_types.FunctionDeclaration]] = None
+_TOP_SECRET_PROMPT: Optional[str] = None
+
+
+def get_top_secret_prompt() -> str:
+    global _TOP_SECRET_PROMPT
+    if _TOP_SECRET_PROMPT is not None:
+        return _TOP_SECRET_PROMPT
+
+    try:
+        prompt_path = Path(__file__).with_name("top-secret-prompt.txt")
+        _TOP_SECRET_PROMPT = prompt_path.read_text(encoding="utf-8").strip()
+    except Exception:
+        _TOP_SECRET_PROMPT = ""
+
+    return _TOP_SECRET_PROMPT
 
 
 def get_function_declaration_models() -> List[genai_types.FunctionDeclaration]:
@@ -43,22 +59,29 @@ def get_tool_names() -> List[str]:
 
 
 def build_tools_instruction(tool_names: List[str]) -> str:
+    prefix = get_top_secret_prompt()
+
     if not tool_names:
-        return (
+        instruction = (
             "You MAY return a single fenced JSON object to call a tool with schema: "
             '{"name": string, "arguments": object}. If no tool is needed, answer normally.'
         )
-    names_csv = ", ".join(tool_names)
-    tool_count = len(tool_names)
-    return (
-        f"You have access to {tool_count} external tools containing canonical Aqqal data ({names_csv}). These tools are your first priority. "
-        "Always check whether one or more tool calls are required before you answer. "
-        "Do not request hadith transmission chains; our Aqqal key lacks chain permissions, so omit any `include_chains` argument. "
-        "If the user's request depends on factual Tafsir/Hadith/Quran content, you MUST call the appropriate tool(s) instead of guessing. "
-        "Return a single fenced JSON object exactly in this schema and nothing else: \n"
-        "```json\n{\n  \"name\": \"<one of: %s>\",\n  \"arguments\": { /* key-value args */ }\n}\n```\n"
-        "If and only if no tool is applicable, answer succinctly. After a tool result is provided, incorporate it into the final answer using only supported facts."
-    ) % names_csv
+    else:
+        names_csv = ", ".join(tool_names)
+        tool_count = len(tool_names)
+        instruction = (
+            f"You have access to {tool_count} external tools containing canonical Aqqal data ({names_csv}). These tools are your first priority. "
+            "Always check whether one or more tool calls are required before you answer. "
+            "Do not request hadith transmission chains; our Aqqal key lacks chain permissions, so omit any `include_chains` argument. "
+            "If the user's request depends on factual Tafsir/Hadith/Quran content, you MUST call the appropriate tool(s) instead of guessing. "
+            "Return a single fenced JSON object exactly in this schema and nothing else: \n"
+            "```json\n{\n  \"name\": \"<one of: %s>\",\n  \"arguments\": { /* key-value args */ }\n}\n```\n"
+            "If and only if no tool is applicable, answer succinctly. After a tool result is provided, incorporate it into the final answer using only supported facts."
+        ) % names_csv
+
+    if prefix:
+        return f"{prefix}\n\n{instruction}"
+    return instruction
 
 
 def extract_function_call_from_response(resp: Any) -> Optional[Tuple[str, Dict[str, Any], Optional[Dict[str, Any]]]]:
