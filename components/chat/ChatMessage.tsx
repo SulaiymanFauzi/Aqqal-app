@@ -191,6 +191,9 @@ export default function ChatMessage({ msg }: Props) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const isUser = msg.role === 'user';
+  const thoughtTitles = !isUser && Array.isArray(msg.thoughtTitles) ? msg.thoughtTitles.filter(Boolean) : [];
+  const showThoughtSummary = thoughtTitles.length > 0;
+  const showThoughtTitle = !isUser && !!msg.thoughtTitle;
   const preparedContent = React.useMemo(() => massageContent(msg.content), [msg.content]);
   const segments = React.useMemo(() => parseContent(preparedContent), [preparedContent]);
   const inFlightRef = React.useRef(false);
@@ -249,6 +252,40 @@ export default function ChatMessage({ msg }: Props) {
               <RNText style={[styles.timestamp, { color: cardTone.metaColor, marginLeft: 8 }]}>{timeLabel}</RNText>
             )}
           </RNView>
+          {showThoughtSummary && (
+            <RNView style={styles.thoughtList}>
+              {thoughtTitles.map((title, idx) => {
+                const active = msg.thoughtTitle === title;
+                return (
+                  <RNView
+                    key={`${title}-${idx}`}
+                    style={[styles.thoughtItem, active && styles.thoughtItemActive]}
+                  >
+                    <RNText
+                      style={[styles.thoughtBullet, active && { color: cardTone.linkColor }]}
+                    >
+                      •
+                    </RNText>
+                    <RNText
+                      style={[
+                        styles.thoughtItemText,
+                        { color: cardTone.metaColor },
+                        active && { color: cardTone.linkColor },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {title}
+                    </RNText>
+                  </RNView>
+                );
+              })}
+            </RNView>
+          )}
+          {showThoughtTitle && !showThoughtSummary && (
+            <RNText style={[styles.thoughtTitle, { color: cardTone.metaColor }]}>
+              {msg.thoughtTitle}
+            </RNText>
+          )}
           <Text style={[styles.content, { color: cardTone.textColor }, isUser && styles.userText]}>
             {segments.map((seg, idx) => {
               if (seg.type === 'bold') {
@@ -332,6 +369,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  thoughtTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  thoughtList: {
+    marginBottom: 12,
+    gap: 6,
+  },
+  thoughtItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  thoughtItemActive: {
+    opacity: 1,
+  },
+  thoughtBullet: {
+    fontSize: 12,
+  },
+  thoughtItemText: {
+    fontSize: 13,
+    flex: 1,
   },
   roleLabel: {
     fontSize: 14,

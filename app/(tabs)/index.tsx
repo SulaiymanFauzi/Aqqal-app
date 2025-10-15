@@ -4,7 +4,7 @@ import { View } from '@/components/Themed';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
-import type { Conversation, Message } from '@/components/chat/types';
+import type { Conversation, Message, StreamEvent } from '@/components/chat/types';
 import { loadConversations, saveConversations } from '@/utils/storage';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -113,27 +113,135 @@ export default function TabOneScreen() {
     // Prepare messages to send (include the new user message)
     const outgoing = [...(current?.messages ?? []), userMsg];
 
-    try {
-      const res = await chatApi(outgoing, {
-        // Toggle search grounding here if desired
-        // use_search: true,
-        max_output_tokens: 4096, // reduce chance of truncation for long answers
+    const assistantId = genId();
+    const now = Date.now();
+    const initialAssistant: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      createdAt: now,
+      thoughts: null,
+      thoughtTitle: null,
+      thoughtTitles: [],
+      streamEvents: [],
+    };
+
+    updateConversation(convoId, (c) => ({
+      ...c,
+      messages: [...c.messages, initialAssistant],
+      updatedAt: Date.now(),
+    }));
+
+    const patchAssistant = (mutator: (msg: Message) => Message) => {
+      updateConversation(convoId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) => (m.id === assistantId ? mutator(m) : m)),
+        updatedAt: Date.now(),
+      }));
+    };
+
+    let accumulatedAnswer = '';
+    let accumulatedThoughts = '';
+    let thoughtTitle: string | null = null;
+    const thoughtTitles: string[] = [];
+    const collectedEvents: StreamEvent[] = [];
+
+    const syncThoughtTitles = (text: string) => {
+      if (!text) return;
+      const matches = Array.from(text.matchAll(/\*\*([^*]+)\*\*/g));
+      let updated = false;
+      matches.forEach((match) => {
+        const extracted = match[1]?.trim();
+        if (!extracted) return;
+        if (!thoughtTitles.includes(extracted)) {
+          thoughtTitles.push(extracted);
+          updated = true;
+        }
       });
-      const reply: Message = {
-        id: genId(),
-        role: 'assistant',
-        content: res.text,
-        createdAt: Date.now(),
-      };
-      updateConversation(convoId, (c) => ({ ...c, messages: [...c.messages, reply], updatedAt: Date.now() }));
+      if (!updated) {
+        const trimmed = text.trim();
+        if (trimmed) {
+          const fallback = trimmed.split(/[\n\.]/)[0]?.trim();
+          if (fallback && !thoughtTitles.includes(fallback)) {
+            thoughtTitles.push(fallback);
+            updated = true;
+          }
+        }
+      }
+      if (thoughtTitles.length > 0) {
+        thoughtTitle = thoughtTitles[thoughtTitles.length - 1];
+      }
+    };
+
+    try {
+      await chatApi(outgoing, {
+        max_output_tokens: 4096,
+        stream: true,
+        streamHandlers: {
+          onEvent: (evt) => {
+            collectedEvents.push(evt);
+            if (evt.kind === 'answer') {
+              accumulatedAnswer += evt.text;
+              patchAssistant((msg) => ({
+                ...msg,
+                content: accumulatedAnswer,
+                streamEvents: [...collectedEvents],
+              }));
+            } else {
+              accumulatedThoughts += evt.text;
+              syncThoughtTitles(evt.text);
+              const titlesSnapshot: string[] = thoughtTitles.length ? [...thoughtTitles] : [];
+              patchAssistant((msg) => ({
+                ...msg,
+                thoughts: accumulatedThoughts,
+                thoughtTitle,
+                thoughtTitles: titlesSnapshot,
+                streamEvents: [...collectedEvents],
+              }));
+            }
+          },
+          onFinal: (resp) => {
+            const normalizedThoughts =
+              resp.thoughts !== undefined && resp.thoughts !== null
+                ? resp.thoughts
+                : accumulatedThoughts
+                ? accumulatedThoughts
+                : null;
+            if (normalizedThoughts) {
+              syncThoughtTitles(normalizedThoughts);
+            }
+            const titlesSnapshot: string[] = thoughtTitles.length ? [...thoughtTitles] : [];
+            patchAssistant((msg) => ({
+              ...msg,
+              content: resp.text,
+              thoughts: normalizedThoughts,
+              thoughtTitle,
+              thoughtTitles: titlesSnapshot,
+              streamEvents: resp.stream_events ?? [...collectedEvents],
+            }));
+          },
+          onError: (errPayload) => {
+            patchAssistant((msg) => ({
+              ...msg,
+              content: `Error (${errPayload.status}): ${errPayload.detail}`,
+              thoughts: null,
+              thoughtTitle: null,
+              thoughtTitles: null,
+              streamEvents: null,
+            }));
+          },
+        },
+      });
     } catch (err: any) {
-      const reply: Message = {
-        id: genId(),
-        role: 'assistant',
-        content: `Error contacting server: ${err?.message ?? 'Unknown error'}`,
-        createdAt: Date.now(),
-      };
-      updateConversation(convoId, (c) => ({ ...c, messages: [...c.messages, reply], updatedAt: Date.now() }));
+      const message = err?.message ?? 'Unknown error';
+      patchAssistant((msg) => ({
+        ...msg,
+        content: `Error contacting server: ${message}`,
+        thoughts: null,
+        thoughtTitle: null,
+        thoughtTitles: null,
+        streamEvents: null,
+      }));
     }
   };
 
@@ -160,9 +268,7 @@ export default function TabOneScreen() {
           style={styles.list}
           data={current?.messages ?? []}
           keyExtractor={(m) => m.id}
-          renderItem={({ item, index }) => (
-            <ChatMessage msg={item} order={index + 1} isLast={index === (current?.messages.length ?? 0) - 1} />
-          )}
+          renderItem={({ item }) => <ChatMessage msg={item} />}
           contentContainerStyle={styles.messages}
         />
         <ChatInput onSend={handleSend} />
