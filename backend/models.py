@@ -32,9 +32,20 @@ class ChatRequest(BaseModel):
         True,
         description="If true (default), enable minimal tool-calling via api_tools using a JSON schema in the model output.",
     )
+    stream: Optional[bool] = Field(
+        False,
+        description="If true, return a server-sent events stream instead of a single JSON payload.",
+    )
+
+
+class StreamEvent(BaseModel):
+    kind: Literal["thought", "answer"]
+    text: str
 
 
 class ChatResponse(BaseModel):
     model: str
     text: str
     tools_used: Optional[List[str]] = None
+    thoughts: Optional[str] = None
+    stream_events: Optional[List[StreamEvent]] = None
