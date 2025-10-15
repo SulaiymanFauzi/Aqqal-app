@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
-import type { Message } from '@/components/chat/types';
+import EventSource from 'react-native-sse';
+import type { Message, StreamEvent } from '@/components/chat/types';
+export type { StreamEvent } from '@/components/chat/types';
 
 // Configure the backend base URL
 // Preferred: set EXPO_PUBLIC_API_BASE_URL in your env (e.g., http://192.168.x.y:8000)
@@ -23,27 +25,213 @@ export type ChatOptions = {
 export type ChatResponse = {
   model: string;
   text: string;
+  thoughts?: string | null;
+  stream_events?: StreamEvent[] | null;
 };
 
-export async function chat(messages: Message[], opts: ChatOptions = {}): Promise<ChatResponse> {
-  // Transform to backend schema (drop id/createdAt)
+export type ChatStreamHandlers = {
+  onEvent?: (event: StreamEvent) => void;
+  onFinal?: (response: ChatResponse) => void;
+  onError?: (payload: { status: number; detail: string }) => void;
+};
+
+type SSEState = {
+  buffer: string;
+  finalResponse: ChatResponse | null;
+};
+
+function parseSSEChunk(
+  chunk: string,
+  state: SSEState,
+  handlers?: ChatStreamHandlers,
+) {
+  state.buffer += chunk;
+
+  let newlineIndex: number;
+  while ((newlineIndex = state.buffer.indexOf('\n\n')) !== -1) {
+    const rawEvent = state.buffer.slice(0, newlineIndex);
+    state.buffer = state.buffer.slice(newlineIndex + 2);
+
+    if (!rawEvent.trim()) {
+      continue;
+    }
+
+    const lines = rawEvent.split('\n');
+    let eventName = 'message';
+    let dataPayload = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        dataPayload += line.slice(5).trim();
+      }
+    }
+
+    if (!dataPayload) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(dataPayload);
+      if (eventName === 'chunk') {
+        handlers?.onEvent?.(parsed as StreamEvent);
+      } else if (eventName === 'final') {
+        const parsedFinal = parsed as ChatResponse;
+        const normalizedFinal: ChatResponse = {
+          ...parsedFinal,
+          thoughts: parsedFinal.thoughts ?? undefined,
+          stream_events: parsedFinal.stream_events ?? undefined,
+        };
+        state.finalResponse = normalizedFinal;
+        handlers?.onFinal?.(normalizedFinal);
+      } else if (eventName === 'error') {
+        handlers?.onError?.(parsed as { status: number; detail: string });
+      }
+    } catch (err) {
+      console.warn('Failed to parse SSE message', err);
+    }
+  }
+}
+
+export async function chat(
+  messages: Message[],
+  opts: ChatOptions & { stream?: boolean; streamHandlers?: ChatStreamHandlers } = {},
+): Promise<ChatResponse> {
+  const { stream = false, streamHandlers, ...restOpts } = opts;
+
   const payload = {
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    use_tools: opts.use_tools ?? true,
-    ...opts,
+    use_tools: restOpts.use_tools ?? true,
+    ...restOpts,
+    stream,
   };
 
+  if (stream && Platform.OS !== 'web') {
+    return new Promise<ChatResponse>((resolve, reject) => {
+      const eventSource = new (EventSource as any)(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        pollingInterval: 0,
+        withCredentials: false,
+      });
+
+      let settled = false;
+
+      const cleanup = () => {
+        try {
+          eventSource.close();
+        } catch (err) {
+          // ignore close issues
+        }
+        (eventSource as any).removeEventListener('chunk', handleChunk);
+        (eventSource as any).removeEventListener('final', handleFinal);
+        (eventSource as any).removeEventListener('error', handleError);
+        (eventSource as any).removeEventListener('exception', handleError);
+      };
+
+      const handleChunk = (event: any) => {
+        if (!event?.data) return;
+        try {
+          const parsed = JSON.parse(event.data) as StreamEvent;
+          streamHandlers?.onEvent?.(parsed);
+        } catch (err) {
+          console.warn('Failed to parse chunk event', err);
+        }
+      };
+
+      const handleFinal = (event: any) => {
+        if (settled) return;
+        if (!event?.data) {
+          handleError({ message: 'Stream ended without final response.' });
+          return;
+        }
+        try {
+          const parsed = JSON.parse(event.data) as ChatResponse;
+          const normalized: ChatResponse = {
+            ...parsed,
+            thoughts: parsed.thoughts ?? undefined,
+            stream_events: parsed.stream_events ?? undefined,
+          };
+          streamHandlers?.onFinal?.(normalized);
+          settled = true;
+          cleanup();
+          resolve(normalized);
+        } catch (err) {
+          handleError({ message: err instanceof Error ? err.message : String(err) });
+        }
+      };
+
+      const handleError = (event: any) => {
+        if (settled) {
+          cleanup();
+          return;
+        }
+        const detail = event?.message || event?.data || 'Stream connection error';
+        streamHandlers?.onError?.({ status: 0, detail: String(detail) });
+        settled = true;
+        cleanup();
+        reject(new Error(String(detail)));
+      };
+
+      (eventSource as any).addEventListener('chunk', handleChunk);
+      (eventSource as any).addEventListener('final', handleFinal);
+      (eventSource as any).addEventListener('error', handleError);
+      (eventSource as any).addEventListener('exception', handleError);
+    });
+  }
+
+  const controller = new AbortController();
   const res = await fetch(`${API_BASE_URL}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: controller.signal,
   });
 
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Backend error ${res.status}: ${text}`);
   }
-  return res.json();
+
+  if (!stream) {
+    const data: ChatResponse = await res.json();
+    const normalized = {
+      ...data,
+      thoughts: data.thoughts ?? undefined,
+      stream_events: data.stream_events ?? undefined,
+    };
+    streamHandlers?.onFinal?.(normalized);
+    return normalized;
+  }
+
+  const supportsReadableStream = typeof res.body?.getReader === 'function';
+  const sseState: SSEState = { buffer: '', finalResponse: null };
+
+  if (supportsReadableStream && res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        parseSSEChunk(chunk, sseState, streamHandlers);
+      }
+    } finally {
+      controller.abort();
+    }
+  } else {
+    // Fallback: environment (e.g., React Native) lacks ReadableStream support.
+    const textPayload = await res.text();
+    parseSSEChunk(textPayload, sseState, streamHandlers);
+    controller.abort();
+  }
+
+  if (!sseState.finalResponse) {
+    throw new Error('Stream ended without final response.');
+  }
+  return sseState.finalResponse;
 }
 
 export async function defineTerm(term: string): Promise<string> {
