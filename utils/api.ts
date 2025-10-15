@@ -38,6 +38,7 @@ export type ChatStreamHandlers = {
 type SSEState = {
   buffer: string;
   finalResponse: ChatResponse | null;
+  errorPayload?: { status: number; detail: string };
 };
 
 function parseSSEChunk(
@@ -74,6 +75,7 @@ function parseSSEChunk(
     try {
       const parsed = JSON.parse(dataPayload);
       if (eventName === 'chunk') {
+        console.debug('[SSE] chunk event', parsed);
         handlers?.onEvent?.(parsed as StreamEvent);
       } else if (eventName === 'final') {
         const parsedFinal = parsed as ChatResponse;
@@ -82,9 +84,12 @@ function parseSSEChunk(
           thoughts: parsedFinal.thoughts ?? undefined,
           stream_events: parsedFinal.stream_events ?? undefined,
         };
+        console.debug('[SSE] final event received', normalizedFinal);
         state.finalResponse = normalizedFinal;
         handlers?.onFinal?.(normalizedFinal);
       } else if (eventName === 'error') {
+        console.warn('[SSE] error event payload', parsed);
+        state.errorPayload = parsed as { status: number; detail: string };
         handlers?.onError?.(parsed as { status: number; detail: string });
       }
     } catch (err) {
@@ -214,9 +219,25 @@ export async function chat(
     try {
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        parseSSEChunk(chunk, sseState, streamHandlers);
+        if (done) {
+          const flushChunk = decoder.decode();
+          if (flushChunk) {
+            console.debug('[SSE] flush chunk', flushChunk);
+            parseSSEChunk(flushChunk, sseState, streamHandlers);
+          }
+          if (sseState.buffer.trim()) {
+            console.debug('[SSE] parsing trailing buffer');
+            parseSSEChunk('\n\n', sseState, streamHandlers);
+          }
+          break;
+        }
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          if (chunk) {
+            console.debug('[SSE] raw chunk', chunk);
+            parseSSEChunk(chunk, sseState, streamHandlers);
+          }
+        }
       }
     } finally {
       controller.abort();
@@ -224,11 +245,19 @@ export async function chat(
   } else {
     // Fallback: environment (e.g., React Native) lacks ReadableStream support.
     const textPayload = await res.text();
+    console.debug('[SSE] fallback payload', textPayload);
     parseSSEChunk(textPayload, sseState, streamHandlers);
     controller.abort();
   }
 
   if (!sseState.finalResponse) {
+    if (sseState.errorPayload) {
+      console.warn('[SSE] stream ended with error payload', sseState.errorPayload);
+      throw new Error(sseState.errorPayload.detail || `Stream error ${sseState.errorPayload.status}`);
+    }
+    console.warn('[SSE] stream completed without final response', {
+      buffered: sseState.buffer,
+    });
     throw new Error('Stream ended without final response.');
   }
   return sseState.finalResponse;

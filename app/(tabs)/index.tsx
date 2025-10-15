@@ -13,11 +13,18 @@ import { useNavigation } from 'expo-router';
 import { chat as chatApi } from '@/utils/api';
 
 export default function TabOneScreen() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 768; // narrower threshold for showing persistent sidebar
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const navigation = useNavigation();
+  const flatListRef = React.useRef<FlatList<Message>>(null);
+  const [scrollSpacerActive, setScrollSpacerActive] = useState(false);
+  const [scrollSpacerHeight, setScrollSpacerHeight] = useState(0);
+  const [listViewportHeight, setListViewportHeight] = useState<number | null>(null);
+  const [listContentHeight, setListContentHeight] = useState<number | null>(null);
+  const [spacerReleaseArmed, setSpacerReleaseArmed] = useState(false);
+  const [spacerBaselineHeight, setSpacerBaselineHeight] = useState<number | null>(null);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -86,6 +93,28 @@ export default function TabOneScreen() {
     () => conversations.find((c) => c.id === currentId) ?? null,
     [conversations, currentId]
   );
+  const scrollToBottomWithSpacer = React.useCallback(() => {
+    if (!flatListRef.current) return;
+    const relativeHeight = listViewportHeight ?? Math.round(height * 0.9);
+    const computedSpacer = Math.max(Math.round(relativeHeight * 0.68), 320);
+    const baseline = listContentHeight ?? 0;
+    setScrollSpacerHeight(computedSpacer);
+    setScrollSpacerActive(true);
+    setSpacerReleaseArmed(false);
+    setSpacerBaselineHeight(baseline);
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+  }, [height, listViewportHeight, listContentHeight]);
+
+  useEffect(() => {
+    if (!currentId) return;
+    setScrollSpacerActive(false);
+    setScrollSpacerHeight(0);
+    setListContentHeight(null);
+    setSpacerReleaseArmed(false);
+    setSpacerBaselineHeight(null);
+  }, [currentId]);
 
   const handleNewChat = () => {
     const id = genId();
@@ -112,6 +141,7 @@ export default function TabOneScreen() {
 
     // Prepare messages to send (include the new user message)
     const outgoing = [...(current?.messages ?? []), userMsg];
+    const targetIndex = outgoing.length - 1;
 
     const assistantId = genId();
     const now = Date.now();
@@ -124,6 +154,9 @@ export default function TabOneScreen() {
       thoughtTitle: null,
       thoughtTitles: [],
       streamEvents: [],
+      isStreaming: true,
+      toolStatus: null,
+      toolLogs: [],
     };
 
     updateConversation(convoId, (c) => ({
@@ -131,6 +164,10 @@ export default function TabOneScreen() {
       messages: [...c.messages, initialAssistant],
       updatedAt: Date.now(),
     }));
+
+    if (targetIndex >= 1) {
+      scrollToBottomWithSpacer();
+    }
 
     const patchAssistant = (mutator: (msg: Message) => Message) => {
       updateConversation(convoId, (c) => ({
@@ -180,23 +217,46 @@ export default function TabOneScreen() {
         streamHandlers: {
           onEvent: (evt) => {
             collectedEvents.push(evt);
+            if (!spacerReleaseArmed) {
+              setSpacerReleaseArmed(true);
+            }
             if (evt.kind === 'answer') {
               accumulatedAnswer += evt.text;
               patchAssistant((msg) => ({
                 ...msg,
                 content: accumulatedAnswer,
                 streamEvents: [...collectedEvents],
+                isStreaming: true,
               }));
             } else {
               accumulatedThoughts += evt.text;
               syncThoughtTitles(evt.text);
               const titlesSnapshot: string[] = thoughtTitles.length ? [...thoughtTitles] : [];
+              const trimmedToolText = evt.text?.trim() ?? '';
+              const sanitizedToolEntry = trimmedToolText
+                .replace(/^\u0000+/g, '')
+                .replace(/^\[tools\]\s*/i, '')
+                .trim();
+              const isToolLine = sanitizedToolEntry.length > 0 && trimmedToolText.replace(/^\u0000+/g, '').startsWith('[tools]');
+              const toolResultLine = isToolLine && /^result\b/i.test(sanitizedToolEntry);
               patchAssistant((msg) => ({
                 ...msg,
                 thoughts: accumulatedThoughts,
                 thoughtTitle,
                 thoughtTitles: titlesSnapshot,
                 streamEvents: [...collectedEvents],
+                isStreaming: true,
+                toolStatus: isToolLine ? (toolResultLine ? 'completed' : 'active') : msg.toolStatus,
+                toolLogs:
+                  isToolLine
+                    ? (() => {
+                        const prev = msg.toolLogs ?? [];
+                        if (!sanitizedToolEntry || prev.includes(sanitizedToolEntry)) {
+                          return prev;
+                        }
+                        return [...prev, sanitizedToolEntry];
+                      })()
+                    : msg.toolLogs,
               }));
             }
           },
@@ -207,6 +267,14 @@ export default function TabOneScreen() {
                 : accumulatedThoughts
                 ? accumulatedThoughts
                 : null;
+            if (scrollSpacerActive) {
+              setScrollSpacerActive(false);
+              setScrollSpacerHeight(0);
+            }
+            if (spacerReleaseArmed) {
+              setSpacerReleaseArmed(false);
+            }
+            setSpacerBaselineHeight(null);
             if (normalizedThoughts) {
               syncThoughtTitles(normalizedThoughts);
             }
@@ -218,6 +286,9 @@ export default function TabOneScreen() {
               thoughtTitle,
               thoughtTitles: titlesSnapshot,
               streamEvents: resp.stream_events ?? [...collectedEvents],
+              isStreaming: false,
+              toolStatus: msg.toolLogs && msg.toolLogs.length > 0 ? 'completed' : null,
+              toolLogs: msg.toolLogs && msg.toolLogs.length > 0 ? [...msg.toolLogs] : null,
             }));
           },
           onError: (errPayload) => {
@@ -228,24 +299,70 @@ export default function TabOneScreen() {
               thoughtTitle: null,
               thoughtTitles: null,
               streamEvents: null,
+              isStreaming: false,
+              toolStatus: msg.toolLogs && msg.toolLogs.length > 0 ? 'completed' : null,
+              toolLogs: msg.toolLogs && msg.toolLogs.length > 0 ? [...msg.toolLogs] : msg.toolLogs,
             }));
           },
         },
       });
     } catch (err: any) {
       const message = err?.message ?? 'Unknown error';
-      patchAssistant((msg) => ({
-        ...msg,
-        content: `Error contacting server: ${message}`,
-        thoughts: null,
-        thoughtTitle: null,
-        thoughtTitles: null,
-        streamEvents: null,
-      }));
+      const fallback = accumulatedAnswer.trim();
+      if (scrollSpacerActive) {
+        setScrollSpacerActive(false);
+        setScrollSpacerHeight(0);
+      }
+      if (spacerReleaseArmed) {
+        setSpacerReleaseArmed(false);
+      }
+      setSpacerBaselineHeight(null);
+      if (fallback) {
+        const normalizedThoughts = accumulatedThoughts.trim() ? accumulatedThoughts : null;
+        if (normalizedThoughts) {
+          syncThoughtTitles(normalizedThoughts);
+        }
+        const titlesSnapshot: string[] = thoughtTitles.length ? [...thoughtTitles] : [];
+        patchAssistant((msg) => ({
+          ...msg,
+          content: fallback,
+          thoughts: normalizedThoughts,
+          thoughtTitle,
+          thoughtTitles: titlesSnapshot,
+          streamEvents: [...collectedEvents],
+          isStreaming: false,
+          toolStatus: msg.toolLogs && msg.toolLogs.length > 0 ? 'completed' : null,
+          toolLogs: msg.toolLogs && msg.toolLogs.length > 0 ? [...msg.toolLogs] : msg.toolLogs,
+        }));
+      } else {
+        patchAssistant((msg) => ({
+          ...msg,
+          content: `Error contacting server: ${message}`,
+          thoughts: null,
+          thoughtTitle: null,
+          thoughtTitles: null,
+          streamEvents: null,
+          isStreaming: false,
+          toolStatus: msg.toolLogs && msg.toolLogs.length > 0 ? 'completed' : null,
+          toolLogs: msg.toolLogs && msg.toolLogs.length > 0 ? [...msg.toolLogs] : msg.toolLogs,
+        }));
+      }
     }
   };
 
   const sidebarWidth = Math.min(320, Math.max(280, Math.round(width * 0.84)));
+  useEffect(() => {
+    if (!scrollSpacerActive || !spacerReleaseArmed) return;
+    if (listViewportHeight == null || listContentHeight == null || spacerBaselineHeight == null) return;
+    const newContentDelta = listContentHeight - spacerBaselineHeight;
+    const threshold = Math.max(listViewportHeight - 24, listViewportHeight * 0.85);
+    if (newContentDelta > threshold) {
+      setScrollSpacerActive(false);
+      setScrollSpacerHeight(0);
+      setSpacerReleaseArmed(false);
+      setSpacerBaselineHeight(null);
+    }
+  }, [scrollSpacerActive, spacerReleaseArmed, listViewportHeight, listContentHeight, spacerBaselineHeight]);
 
   return (
     <View style={styles.page}>
@@ -265,11 +382,24 @@ export default function TabOneScreen() {
           <RNView {...openEdgePan.panHandlers} style={styles.edgeSwipe} />
         )}
         <FlatList
+          ref={flatListRef}
           style={styles.list}
+          onLayout={(event) => {
+            setListViewportHeight(event.nativeEvent.layout.height);
+          }}
           data={current?.messages ?? []}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => <ChatMessage msg={item} />}
           contentContainerStyle={styles.messages}
+          onContentSizeChange={(_, heightValue) => {
+            setListContentHeight(heightValue);
+          }}
+          ListFooterComponent={scrollSpacerActive ? <RNView style={{ height: scrollSpacerHeight }} /> : null}
+          onScrollToIndexFailed={(info) => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }}
         />
         <ChatInput onSend={handleSend} />
       </View>

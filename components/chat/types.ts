@@ -14,6 +14,9 @@ export type Message = {
   thoughtTitle?: string | null;
   thoughtTitles?: string[] | null;
   streamEvents?: StreamEvent[] | null;
+  isStreaming?: boolean;
+  toolStatus?: string | null;
+  toolLogs?: string[] | null;
 };
 
 export type Conversation = {
