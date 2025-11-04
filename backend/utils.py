@@ -13,17 +13,21 @@ _TOP_SECRET_PROMPT: Optional[str] = None
 
 
 def get_top_secret_prompt() -> str:
-    global _TOP_SECRET_PROMPT
-    if _TOP_SECRET_PROMPT is not None:
-        return _TOP_SECRET_PROMPT
+    # Disable caching in development - always reload the prompt file
+    # global _TOP_SECRET_PROMPT
+    # if _TOP_SECRET_PROMPT is not None:
+    #     return _TOP_SECRET_PROMPT
 
     try:
         prompt_path = Path(__file__).with_name("top-secret-prompt.txt")
-        _TOP_SECRET_PROMPT = prompt_path.read_text(encoding="utf-8").strip()
-    except Exception:
-        _TOP_SECRET_PROMPT = ""
+        prompt = prompt_path.read_text(encoding="utf-8").strip()
+        # Debug: print first 200 chars to verify it's loading
+        print(f"[DEBUG] Loaded prompt (first 200 chars): {prompt[:200]}")
+    except Exception as e:
+        print(f"[ERROR] Failed to load prompt: {e}")
+        prompt = ""
 
-    return _TOP_SECRET_PROMPT
+    return prompt
 
 
 def get_function_declaration_models() -> List[genai_types.FunctionDeclaration]:

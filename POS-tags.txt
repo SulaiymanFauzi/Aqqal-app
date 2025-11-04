@@ -1,0 +1,159 @@
+
+ 	Tag	Arabic Name	Description
+Prepositions	P	حرف جر	Preposition
+lām Prefixes	EMPH	لام التوكيد	Emphatic lām prefix
+IMPV	لام الامر	Imperative lām prefix
+PRP	لام التعليل	Purpose lām prefix
+Conjunctions	CONJ	حرف عطف	Coordinating conjunction
+SUB	حرف مصدري	Subordinating conjunction
+Particles	ACC	حرف نصب	Accusative particle
+AMD	حرف استدراك	Amendment particle
+ANS	حرف جواب	Answer particle
+AVR	حرف ردع	Aversion particle
+CAUS	حرف سببية	Particle of cause
+CERT	حرف تحقيق	Particle of certainty
+CIRC	حرف حال	Circumstantial particle
+COM	واو المعية	Comitative particle
+COND	حرف شرط	Conditional particle
+EQ	حرف تسوية	Equalization particle
+EXH	حرف تحضيض	Exhortation particle
+EXL	حرف تفصيل	Explanation particle
+EXP	أداة استثناء	Exceptive particle
+FUT	حرف استقبال	Future particle
+INC	حرف ابتداء	Inceptive particle
+INT	حرف تفسير	Particle of interpretation
+INTG	حرف استفهام	Interogative particle
+NEG	حرف نفي	Negative particle
+PREV	حرف كاف	Preventive particle
+PRO	حرف نهي	Prohibition particle
+REM	حرف استئنافية	Resumption particle
+RES	أداة حصر	Restriction particle
+RET	حرف اضراب	Retraction particle
+RSLT	حرف واقع في جواب الشرط	Result particle
+SUP	حرف زائد	Supplemental particle
+SUR	حرف فجاءة	Surprise particle
+VOC	حرف نداء	Vocative particle
+Disconnected Letters	INL	حروف مقطعة	Quranic initials
+
+
+ 	Tag	Arabic Name	Description
+Nouns	N	اسم	Noun
+PN	اسم علم	Proper noun
+Derived nominals	ADJ	صفة	Adjective
+IMPN	اسم فعل أمر	Imperative verbal noun
+Pronouns	PRON	ضمير	Personal pronoun
+DEM	اسم اشارة	Demonstrative pronoun
+REL	اسم موصول	Relative pronoun
+Adverbs	T	ظرف زمان	Time adverb
+LOC	ظرف مكان	Location adverb
+
+ 	Tag	Arabic Name	Description
+Verbs	V	فعل	Verb
+
+Prefixes
+As well as part-of-speech tags, multiple inflection features are assigned to each morphological segment. For example, features for person, gender and number. The features for prefixes end in + and are shown in figures 3 to 7 below. In contrast features for suffixes start with +.
+
+Feature	Name	Segment part-of-speech / description
+Al+	determiner (al)	DET – determiner prefix ("the")
+bi+	preposition (bi)	P – preposition prefix ("by", "with", "in")
+ka+	preposition (ka)	P – preposition prefix ("like" or "thus")
+ta+	preposition (ta)	P – particle of oath prefix used as a preposition ("by Allah")
+sa+	future particle (sa)	P – prefixed particle indicating the future ("they will")
+ya+	vocative particle (yā)	VOC – a vocative prefix usually translated as "O"
+ha+	vocative particle (hā)	VOC – a vocative prefix usually translated as "Lo!"
+Fig 3. Features identifying prefixed segments.
+
+Feature	Name	Segment part-of-speech / description
+A:INTG+	interrogative particle (alif)	INTG – prefixed interrogative particle ("is?", "did?", "do?")
+A:EQ+	equalization particle (alif)	EQ – prefixed equalization particle ("whether")
+Fig 4. Features identifying the particle alif as a prefix.
+
+Feature	Name	Segment part-of-speech / description
+w:CONJ+	conjunction (wa)	CONJ – conjunction prefix ("and")
+w:REM+	resumption (wa)	REM – resumption prefix ("then" or "so")
+w:CIRC+	circumstantial (wa)	CIRC – circumstantial prefix ("while")
+w:SUP+	supplemental (wa)	SUP – supplemental prefix ("then" or "so")
+w:P+	preposition (wa)	P – particle of oath prefix used as a preposition ("by the pen")
+w:COM+	comitative (wa)	COM – comitative prefix ("with")
+Fig 5. Features identifying the particle wāw as a prefix.
+
+Feature	Name	Segment part-of-speech / description
+f:REM+	resumption (fa)	REM – resumption prefix ("then" or "so")
+f:CONJ+	conjunction (fa)	CONJ – conjunction prefix ("and")
+f:RSLT+	result (fa)	RSLT – result prefix ("then")
+f:SUP+	supplemental (fa)	SUP – supplemental prefix ("then" or "so")
+f:CAUS+	cause (fa)	CAUS – cause prefix ("then" or "so")
+Fig 6. Features identifying the particle fa as a prefix.
+
+Feature	Name	Segment part-of-speech / description
+l:P+	preposition (lām)	P – the letter lām as a prefixed preposition
+l:EMPH+	emphasis (lām)	P – the letter lām as a prefixed particle used to give emphasis
+l:PRP+	purpose (lām)	P – the letter lām as a prefixed particle used to indicate purpose
+l:IMPV+	imperative (lām)	P – the letter lām as a prefixed particle used to form an imperative
+
+Feature	Name	Description
+ROOT:	root	Indicates the (usually triliteral) root of a word, for example ROOT:ktb
+LEM:	lemma	Specifies the common lemma for a group of words, for example LEM:kitaAb
+SP:	special	Indicates that the word belongs to a special group, for example SP:<in~
+
+
+Feature	Arabic Name	Values	Description
+person	الاسناد	1, 2, 3	first person, second person, third person
+gender	الجنس	M, F	masculine, feminine
+number	العدد	S, D, P	singular, dual, plural
+
+Feature	Arabic Name	Description
+PERF	فعل ماض	Perfect verb
+IMPF	فعل مضارع	Imperfect verb
+IMPV	فعل أمر	Imperative verb
+Fig 10. Aspect features.
+
+Feature	Arabic Name	Description
+IND	مرفوع	Indicative mood (default)
+SUBJ	منصوب	Subjunctive mood
+JUS	مجزوم	Jussive mood
+Fig 11. Mood features.
+
+Feature	Arabic Name	Description
+ACT	مبني للمعلوم	Active voice (default)
+PASS	مبني للمجهول	Passive voice
+Fig 12. Voice features.
+
+Feature	Description
+I	First form (default)
+II	Second form
+III	Third form
+IV	Fourth form
+V	Fifth form
+VI	Sixth form
+VII	Seventh form
+VIII	Eighth form
+IX	Ninth form
+X	Tenth form
+XI	Eleventh form
+XII	Twelfth form
+Fig 13. Verb form features.
+
+
+Feature	Arabic Name	Description
+ACT PCPL	اسم فاعل	Active participle
+PASS PCPL	اسم مفعول	Passive participle
+VN	مصدر	Verbal noun
+Fig 14. Derivation features.
+
+
+Feature	Arabic Name	Description
+DEF	معرفة	Definite state
+INDEF	نكرة	Indefinite state
+Fig 15. State features.
+
+Feature	Arabic Name	Description
+NOM	مرفوع	Nominative case
+ACC	منصوب	Accusative case
+GEN	مجرور	Genitive case
+Fig 16. Case features.
+
+Suffixes
+In the Quranic Arabic Corpus, three features are used to indicate suffixes. These are attached pronouns, the vocative suffix and the nūn of emphasis. The vocative suffix is denoted by the morphological feature +VOC and is used only with the word allāh to produce the vocative word-form allāhumma. The morphological feature +n:EMPH is used to denote the emphatic usage of nūn as an attached suffix.
+
+Attached pronoun suffixes are identified using the PRON: compound morphological feature. Pronouns attached to nouns are possessive pronouns, and when attached to verbs they are either subject or object pronouns. An attached pronoun may inflect for person, gender and number. A concatenative notation is used with the PRON: tag. For example PRON:3MS represents a third person masculine singular suffixed pronoun. Similarly PRON:2D represents a second person dual suffixed pronoun. See figure 9 above for person, gender and number features.

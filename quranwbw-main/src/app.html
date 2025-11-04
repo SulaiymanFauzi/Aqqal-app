@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>QuranWBW.com</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<meta name="theme-color" content="#ffffff" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content="Quran Word By Word Translation, Transliteration And Morphology in English, Urdu, Hindi, Indonesian, Bangla, Turkish, Tamil, French, German, Chinese, Malayalam, Divehi, Sindhi, Persian and Albanian - QuranWBW.com" />
+
+		<!-- OG Tags -->
+		<meta property="og:url" content="https://quranwbw.com" />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="QuranWBW.com" />
+		<meta property="og:description" content="Quran Word By Word Translation, Transliteration And Morphology" />
+		<meta property="og:image" content="https://quranwbw.com/images/icon-512.png" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta property="twitter:domain" content="quranwbw.com" />
+		<meta property="twitter:url" content="https://quranwbw.com" />
+		<meta name="twitter:title" content="QuranWBW.com" />
+		<meta name="twitter:description" content="Quran Word By Word Translation, Transliteration And Morphology" />
+		<meta name="twitter:image" content="https://quranwbw.com/images/icon-512.png" />
+
+		<!-- Preload the Quran fonts depending on the fontType -->
+		<script>
+			const baseFontUrl = '%sveltekit.assets%/fonts';
+			const isHomePage = location.pathname === '/' || location.pathname === '';
+
+			const preloadFont = (url) => {
+				const link = document.createElement('link');
+				link.rel = 'preload';
+				link.href = url;
+				link.as = 'font';
+				link.type = 'font/woff2';
+				link.crossOrigin = 'anonymous';
+				document.head.appendChild(link);
+			};
+
+			if (isHomePage) {
+				// On homepage, preload specific fonts only
+				preloadFont(`${baseFontUrl}/juz_names-Regular.woff2`);
+				preloadFont(`${baseFontUrl}/surahs_v4-Regular.woff2`);
+			} else {
+				// On other pages, preload main Quran font and optionally Bismillah
+				const userSettings1 = JSON.parse(localStorage.getItem('userSettings'));
+				const fontType = Number(userSettings1?.displaySettings?.fontType ?? '1');
+
+				const fontMap = {
+					1: `${baseFontUrl}/qcf-uthmanic-digital.woff2`,
+					2: `${baseFontUrl}/qcf-uthmanic-digital.woff2`,
+					3: `${baseFontUrl}/qcf-uthmanic-digital.woff2`,
+					4: `${baseFontUrl}/AlQuranNeov5x1.woff2`,
+					5: `${baseFontUrl}/Nastaleeq_COLOR-Regular.woff2`,
+					6: `${baseFontUrl}/AlQuranNeov5x1.woff2`,
+					7: `${baseFontUrl}/qcf-uthmanic-digital-Bold.woff2`,
+					8: `${baseFontUrl}/NastaleeqB_COLOR-Regular.woff2`,
+					9: `${baseFontUrl}/LPMQIsepMisbah-Regular.woff2`
+				};
+
+				const fontUrl = fontMap[fontType];
+				if (fontUrl) preloadFont(fontUrl);
+
+				// Preload Bismillah for all types except 4 and 6 (IndoPak)
+				if (![4, 6].includes(fontType)) {
+					preloadFont(`${baseFontUrl}/QCF_Bismillah_COLOR-Regular-v2.woff2`);
+				}
+			}
+		</script>
+
+		<link rel="dns-prefetch" href="//static.quranwbw.com" />
+		<link rel="preconnect" href="https://static.quranwbw.com" crossorigin />
+		<link crossorigin="anonymous" rel="manifest" href="%sveltekit.assets%/manifest.json?v=2" />
+		<link crossorigin="anonymous" rel="icon" type="image/png" href="%sveltekit.assets%/images/favicon.png?v=2" />
+		<link crossorigin="anonymous" href="%sveltekit.assets%/images/apple-touch-icon.png?v=2" rel="apple-touch-icon" />
+		<link crossorigin="anonymous" rel="stylesheet" href="%sveltekit.assets%/css/global.css?version=84" />
+
+		<!-- 
+		If the user's browser do not support Optional chaining (?.), redirect to old v3 website
+		issue: https://github.com/sveltejs/kit/issues/5209
+		credits: https://stackoverflow.com/a/69935847 
+		caniuse: https://caniuse.com/mdn-javascript_operators_optional_chaining
+		-->
+		<script>
+			try {
+				eval('const foo = {}; foo?.bar');
+			} catch {
+				alert('Important Note: QuranWBW.com has recently been updated. Unfortunately, your current browser version is not compatible with the latest update. We recommend updating your browser to the latest version and trying again. To ensure a seamless experience, you will be redirected to the previous version once you close this alert.');
+				window.location.replace('https://old.quranwbw.com');
+			}
+		</script>
+
+		<!-- Themes related stuff... putting all this here to ensure there is no white-flash -->
+		<script>
+			window.websiteColors = {
+				1: 'bg-[#FFFFFF]',
+				2: 'bg-[#FFFFFF]',
+				3: 'bg-[#e1e1e1]',
+				4: 'bg-[#e9e3d7]',
+				5: 'bg-[#20161f]',
+				6: 'bg-[#02021b]',
+				7: 'bg-[#001617]',
+				8: 'bg-[#000000]',
+				9: 'bg-[#09090b]'
+			};
+
+			const userSettings = JSON.parse(localStorage.getItem('userSettings'));
+			const usersTheme = userSettings ? +userSettings.displaySettings.websiteTheme : 1;
+
+			function theme(type, id = usersTheme) {
+				try {
+					const themes = {
+						1: {
+							themeName: 'Golden Glint',
+							bgMain: 'bg-[#FFFFFF]',
+							bgSecondary: 'bg-[#b1901f]',
+							bgSecondaryLight: 'bg-[#b1901f]/5',
+							bgSecondaryDark: 'bg-[#b1901f]/15',
+							text: 'text-[#000000]',
+							textSecondary: 'text-[#b1901f]',
+							textBgColor: 'text-[#FFFFFF]',
+							border: 'border-[#b1901f]/20',
+							borderDark: '!border-[#b1901f]',
+							icon: '#b1901f',
+							input: 'focus:border-[#b1901f] focus:ring-[#b1901f]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#b1901f] peer-checked:border-[#b1901f]',
+							toggle: 'bg-[#b1901f]/15 after:bg-[#FFFFFF] after:border-[#FFFFFF] peer-checked:bg-[#b1901f]',
+							slider: 'bg-[#b1901f]/10 [&::-webkit-slider-thumb]:!bg-[#b1901f]',
+							hover: 'hover:bg-[#b1901f]/5',
+							hoverBorder: 'border border-transparent hover:border-[#b1901f]',
+							via: 'via-[#b1901f]',
+							placeholder: 'placeholder:text-[#b1901f]/50'
+						},
+						2: {
+							themeName: 'Classic Light',
+							bgMain: 'bg-[#FFFFFF]',
+							bgSecondary: 'bg-[#000000]',
+							bgSecondaryLight: 'bg-[#000000]/5',
+							bgSecondaryDark: 'bg-[#000000]/15',
+							text: 'text-[#000000]',
+							textSecondary: 'text-[#000000]',
+							textBgColor: 'text-[#FFFFFF]',
+							border: 'border-[#000000]/20',
+							borderDark: '!border-[#000000]',
+							icon: '#000000',
+							input: 'focus:border-[#000000] focus:ring-[#000000]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#000000] peer-checked:border-[#000000]',
+							toggle: 'bg-[#000000]/15 after:bg-[#FFFFFF] after:border-[#FFFFFF] peer-checked:bg-[#000000]',
+							slider: 'bg-[#000000]/10 [&::-webkit-slider-thumb]:!bg-[#000000]',
+							hover: 'hover:bg-[#000000]/5',
+							hoverBorder: 'border border-transparent hover:border-[#000000]',
+							via: 'via-[#000000]',
+							placeholder: 'placeholder:text-[#000000]/50'
+						},
+						3: {
+							themeName: 'Silver Lining',
+							bgMain: 'bg-[#e1e1e1]',
+							bgSecondary: 'bg-[#000000]',
+							bgSecondaryLight: 'bg-[#000000]/5',
+							bgSecondaryDark: 'bg-[#000000]/15',
+							text: 'text-[#000000]',
+							textSecondary: 'text-[#000000]',
+							textBgColor: 'text-[#e1e1e1]',
+							border: 'border-[#000000]/20',
+							borderDark: '!border-[#000000]',
+							icon: '#000000',
+							input: 'focus:border-[#000000] focus:ring-[#000000]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#000000] peer-checked:border-[#000000]',
+							toggle: 'bg-[#000000]/15 after:bg-[#e1e1e1] after:border-[#e1e1e1] peer-checked:bg-[#000000]',
+							slider: 'bg-[#000000]/10 [&::-webkit-slider-thumb]:!bg-[#000000]',
+							hover: 'hover:bg-[#000000]/5',
+							hoverBorder: 'border border-transparent hover:border-[#000000]',
+							via: 'via-[#000000]',
+							placeholder: 'placeholder:text-[#000000]/50'
+						},
+						4: {
+							themeName: 'Vintage Sepia',
+							bgMain: 'bg-[#e9e3d7]',
+							bgSecondary: 'bg-[#553c0f]',
+							bgSecondaryLight: 'bg-[#553c0f]/5',
+							bgSecondaryDark: 'bg-[#553c0f]/15',
+							text: 'text-[#553c0f]',
+							textSecondary: 'text-[#553c0f]',
+							textBgColor: 'text-[#e9e3d7]',
+							border: 'border-[#553c0f]/20',
+							borderDark: '!border-[#553c0f]',
+							icon: '#553c0f',
+							input: 'focus:border-[#553c0f] focus:ring-[#553c0f]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#553c0f] peer-checked:border-[#553c0f]',
+							toggle: 'bg-[#553c0f]/15 after:bg-[#e9e3d7] after:border-[#e9e3d7] peer-checked:bg-[#553c0f]',
+							slider: 'bg-[#553c0f]/10 [&::-webkit-slider-thumb]:!bg-[#553c0f]',
+							hover: 'hover:bg-[#553c0f]/5',
+							hoverBorder: 'border border-transparent hover:border-[#553c0f]',
+							via: 'via-[#553c0f]',
+							placeholder: 'placeholder:text-[#553c0f]/50'
+						},
+						5: {
+							themeName: 'Mocha Night',
+							bgMain: 'bg-[#20161f]',
+							bgSecondary: 'bg-[#dca54c]',
+							bgSecondaryLight: 'bg-[#dca54c]/5',
+							bgSecondaryDark: 'bg-[#dca54c]/15',
+							text: 'text-[#dca54c]',
+							textSecondary: 'text-[#dca54c]',
+							textBgColor: 'text-[#20161f]',
+							border: 'border-[#dca54c]/20',
+							borderDark: '!border-[#dca54c]',
+							icon: '#dca54c',
+							input: 'focus:border-[#dca54c] focus:ring-[#dca54c]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#dca54c] peer-checked:border-[#dca54c]',
+							toggle: 'bg-[#dca54c]/15 after:bg-[#20161f] after:border-[#20161f] peer-checked:bg-[#dca54c]',
+							slider: 'bg-[#dca54c]/10 [&::-webkit-slider-thumb]:!bg-[#dca54c]',
+							hover: 'hover:bg-[#dca54c]/5',
+							hoverBorder: 'border border-transparent hover:border-[#dca54c]',
+							via: 'via-[#dca54c]',
+							placeholder: 'placeholder:text-[#dca54c]/50'
+						},
+						6: {
+							themeName: 'Midnight Blue',
+							bgMain: 'bg-[#02021b]',
+							bgSecondary: 'bg-[#c2c2c2]',
+							bgSecondaryLight: 'bg-[#c2c2c2]/5',
+							bgSecondaryDark: 'bg-[#c2c2c2]/15',
+							text: 'text-[#c2c2c2]',
+							textSecondary: 'text-[#c2c2c2]',
+							textBgColor: 'text-[#02021b]',
+							border: 'border-[#c2c2c2]/20',
+							borderDark: '!border-[#c2c2c2]',
+							icon: '#c2c2c2',
+							input: 'focus:border-[#c2c2c2] focus:ring-[#c2c2c2]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#c2c2c2] peer-checked:border-[#c2c2c2]',
+							toggle: 'bg-[#c2c2c2]/15 after:bg-[#02021b] after:border-[#02021b] peer-checked:bg-[#c2c2c2]',
+							slider: 'bg-[#c2c2c2]/10 [&::-webkit-slider-thumb]:!bg-[#c2c2c2]',
+							hover: 'hover:bg-[#c2c2c2]/5',
+							hoverBorder: 'border border-transparent hover:border-[#c2c2c2]',
+							via: 'via-[#c2c2c2]',
+							placeholder: 'placeholder:text-[#c2c2c2]/50'
+						},
+						7: {
+							themeName: 'Forest Green',
+							bgMain: 'bg-[#001617]',
+							bgSecondary: 'bg-[#dddddd]',
+							bgSecondaryLight: 'bg-[#dddddd]/5',
+							bgSecondaryDark: 'bg-[#dddddd]/15',
+							text: 'text-[#dddddd]',
+							textSecondary: 'text-[#dddddd]',
+							textBgColor: 'text-[#001617]',
+							border: 'border-[#dddddd]/20',
+							borderDark: '!border-[#dddddd]',
+							icon: '#dddddd',
+							input: 'focus:border-[#dddddd] focus:ring-[#dddddd]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#dddddd] peer-checked:border-[#dddddd]',
+							toggle: 'bg-[#dddddd]/15 after:bg-[#001617] after:border-[#001617] peer-checked:bg-[#dddddd]',
+							slider: 'bg-[#dddddd]/10 [&::-webkit-slider-thumb]:!bg-[#dddddd]',
+							hover: 'hover:bg-[#dddddd]/5',
+							hoverBorder: 'border border-transparent hover:border-[#dddddd]',
+							via: 'via-[#dddddd]',
+							placeholder: 'placeholder:text-[#dddddd]/50'
+						},
+						8: {
+							themeName: 'Oled Black',
+							bgMain: 'bg-[#000000]',
+							bgSecondary: 'bg-[#dddddd]',
+							bgSecondaryLight: 'bg-[#dddddd]/5',
+							bgSecondaryDark: 'bg-[#dddddd]/15',
+							text: 'text-[#dddddd]',
+							textSecondary: 'text-[#dddddd]',
+							textBgColor: 'text-[#000000]',
+							border: 'border-[#dddddd]/20',
+							borderDark: '!border-[#dddddd]',
+							icon: '#dddddd',
+							input: 'focus:border-[#dddddd] focus:ring-[#dddddd]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#dddddd] peer-checked:border-[#dddddd]',
+							toggle: 'bg-[#dddddd]/15 after:bg-[#000000] after:border-[#000000] peer-checked:bg-[#dddddd]',
+							slider: 'bg-[#dddddd]/10 [&::-webkit-slider-thumb]:!bg-[#dddddd]',
+							hover: 'hover:bg-[#dddddd]/5',
+							hoverBorder: 'border border-transparent hover:border-[#dddddd]',
+							via: 'via-[#dddddd]',
+							placeholder: 'placeholder:text-[#dddddd]/50'
+						},
+						9: {
+							themeName: 'Dark Luxury',
+							bgMain: 'bg-[#09090b]',
+							bgSecondary: 'bg-[#dca54c]',
+							bgSecondaryLight: 'bg-[#dca54c]/5',
+							bgSecondaryDark: 'bg-[#dca54c]/15',
+							text: 'text-[#dca54c]',
+							textSecondary: 'text-[#dca54c]',
+							textBgColor: 'text-[#09090b]',
+							border: 'border-[#dca54c]/20',
+							borderDark: '!border-[#dca54c]',
+							icon: '#dca54c',
+							input: 'focus:border-[#dca54c] focus:ring-[#dca54c]',
+							checked: 'peer-checked:border-2 peer-checked:border-[#dca54c] peer-checked:border-[#dca54c]',
+							toggle: 'bg-[#dca54c]/15 after:bg-[#09090b] after:border-[#09090b] peer-checked:bg-[#dca54c]',
+							slider: 'bg-[#dca54c]/10 [&::-webkit-slider-thumb]:!bg-[#dca54c]',
+							hover: 'hover:bg-[#dca54c]/5',
+							hoverBorder: 'border border-transparent hover:border-[#dca54c]',
+							via: 'via-[#dca54c]',
+							placeholder: 'placeholder:text-[#dca54c]/50'
+						}
+					};
+
+					return themes[id][type] || '';
+				} catch (error) {
+					console.warn('An error occurred while fetching the theme:', error);
+					return '';
+				}
+			}
+
+			window.theme = theme;
+		</script>
+
+		<!-- set the website theme - we put this code here to avoid the white flash and making people go blind -->
+		<script>
+			// Declare the theme variable
+			let currentTheme;
+
+			try {
+				// Try to retrieve the user settings from localStorage and parse the JSON string
+				const userSettings = JSON.parse(localStorage.getItem('userSettings'));
+
+				// Check if displaySettings and websiteTheme exist in the parsed object
+				if (userSettings && userSettings.displaySettings && userSettings.displaySettings.websiteTheme !== undefined) {
+					currentTheme = userSettings.displaySettings.websiteTheme;
+				} else {
+					// Default theme in case the properties don't exist
+					currentTheme = 1;
+				}
+			} catch (error) {
+				// If there's an error during JSON parsing or any other issue, fallback to default theme
+				currentTheme = 1;
+			}
+
+			// Apply the theme class to the document's root element
+			document.documentElement.classList += `theme-${currentTheme} ${window.theme('bgMain')}`;
+		</script>
+
+		<!-- Umami -->
+		<script defer src="%sveltekit.assets%/events.js" data-website-id="07f075d1-8ac0-4ee4-a1b8-9702acc06860"></script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<script>
+			document.body.classList.add(`${window.theme('text')}`);
+		</script>
+
+		<div style="display: contents">%sveltekit.body%</div>
+		<!-- global audio player -->
+		<audio id="player"></audio>
+	</body>
+</html>

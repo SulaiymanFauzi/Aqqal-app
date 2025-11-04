@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import type { Conversation } from '@/components/chat/types';
 
 const KEY = '@aqqal/conversations';
+const ONBOARDING_KEY = '@aqqal/onboarding_completed';
 
 type StorageLike = {
   getItem(key: string): string | null | Promise<string | null>;
@@ -56,5 +57,16 @@ export async function loadConversations(): Promise<Conversation[]> {
 export async function saveConversations(convos: Conversation[]): Promise<void> {
   try {
     await storage.setItem(KEY, JSON.stringify(convos));
+  } catch {}
+}
+
+export async function hasCompletedOnboarding(): Promise<boolean> {
+  const value = await storage.getItem(ONBOARDING_KEY);
+  return value === 'true';
+}
+
+export async function setOnboardingCompleted(): Promise<void> {
+  try {
+    await storage.setItem(ONBOARDING_KEY, 'true');
   } catch {}
 }

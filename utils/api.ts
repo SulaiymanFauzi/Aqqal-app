@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import EventSource from 'react-native-sse';
-import type { Message, StreamEvent } from '@/components/chat/types';
+import type { Message, StreamEvent, Attachment } from '@/components/chat/types';
+import { imageToBase64 } from './imageUtils';
 export type { StreamEvent } from '@/components/chat/types';
 
 // Configure the backend base URL
@@ -13,6 +14,11 @@ const DEFAULT_BASE = Platform.select({
 
 export const API_BASE_URL = ENV_BASE || DEFAULT_BASE!;
 
+// Debug: Log the API URL being used
+console.log('🌐 [API CONFIG] Using API_BASE_URL:', API_BASE_URL);
+console.log('🌐 [API CONFIG] ENV_BASE:', ENV_BASE);
+console.log('🌐 [API CONFIG] DEFAULT_BASE:', DEFAULT_BASE);
+
 export type ChatOptions = {
   model?: string;
   temperature?: number;
@@ -22,11 +28,30 @@ export type ChatOptions = {
   use_tools?: boolean;
 };
 
+export type GroundingChunk = {
+  uri: string;
+  title?: string | null;
+};
+
+export type GroundingSupport = {
+  start_index: number;
+  end_index: number;
+  text: string;
+  grounding_chunk_indices: number[];
+};
+
+export type GroundingMetadata = {
+  web_search_queries?: string[] | null;
+  grounding_chunks?: GroundingChunk[] | null;
+  grounding_supports?: GroundingSupport[] | null;
+};
+
 export type ChatResponse = {
   model: string;
   text: string;
   thoughts?: string | null;
   stream_events?: StreamEvent[] | null;
+  grounding_metadata?: GroundingMetadata | null;
 };
 
 export type ChatStreamHandlers = {
@@ -75,7 +100,7 @@ function parseSSEChunk(
     try {
       const parsed = JSON.parse(dataPayload);
       if (eventName === 'chunk') {
-        console.debug('[SSE] chunk event', parsed);
+        console.log('🔵 [CHUNK DEBUG]', JSON.stringify(parsed, null, 2));
         handlers?.onEvent?.(parsed as StreamEvent);
       } else if (eventName === 'final') {
         const parsedFinal = parsed as ChatResponse;
@@ -104,8 +129,34 @@ export async function chat(
 ): Promise<ChatResponse> {
   const { stream = false, streamHandlers, ...restOpts } = opts;
 
+  // Convert messages with attachments to include base64 images
+  const convertedMessages = await Promise.all(
+    messages.map(async (m) => {
+      const baseMessage: any = {
+        role: m.role,
+        content: m.content,
+      };
+
+      // Convert attachments to base64 if present
+      if (m.attachments && m.attachments.length > 0) {
+        const images = await Promise.all(
+          m.attachments.map(async (att) => {
+            const { base64, mimeType } = await imageToBase64(att.uri);
+            return {
+              mime_type: mimeType,
+              data: base64,
+            };
+          })
+        );
+        baseMessage.images = images;
+      }
+
+      return baseMessage;
+    })
+  );
+
   const payload = {
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: convertedMessages,
     use_tools: restOpts.use_tools ?? true,
     ...restOpts,
     stream,
@@ -139,6 +190,7 @@ export async function chat(
         if (!event?.data) return;
         try {
           const parsed = JSON.parse(event.data) as StreamEvent;
+          console.log('🔵 [CHUNK DEBUG]', JSON.stringify(parsed, null, 2));
           streamHandlers?.onEvent?.(parsed);
         } catch (err) {
           console.warn('Failed to parse chunk event', err);
@@ -234,7 +286,7 @@ export async function chat(
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
           if (chunk) {
-            console.debug('[SSE] raw chunk', chunk);
+            console.log('📦 [RAW CHUNK]', chunk);
             parseSSEChunk(chunk, sseState, streamHandlers);
           }
         }
@@ -290,4 +342,47 @@ export async function defineTerm(term: string): Promise<string> {
   }
   const data: ChatResponse = await res.json();
   return (data.text || '').trim();
+}
+
+/**
+ * Translate an Arabic word to English using the backend LLM
+ * Uses dedicated /translate endpoint with gemini-flash-lite-latest
+ */
+export async function translateArabicWord(
+  arabicWord: string,
+  lemma?: string,
+  root?: string,
+  pos?: string,
+  morphology?: string
+): Promise<string> {
+  // Build query params
+  const params = new URLSearchParams({
+    arabic_word: arabicWord,
+  });
+  
+  if (lemma && lemma !== arabicWord) {
+    params.append('lemma', lemma);
+  }
+  if (root) {
+    params.append('root', root);
+  }
+  if (pos) {
+    params.append('pos', pos);
+  }
+  if (morphology) {
+    params.append('morphology', morphology);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/translate?${params.toString()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Backend error ${res.status}: ${text}`);
+  }
+  
+  const data = await res.json();
+  return (data.translation || '').trim();
 }

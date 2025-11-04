@@ -5,6 +5,15 @@ export type StreamEvent = {
   text: string;
 };
 
+export type Attachment = {
+  id: string;
+  type: 'image';
+  uri: string;
+  width?: number;
+  height?: number;
+  fileName?: string;
+};
+
 export type Message = {
   id: string;
   role: Role;
@@ -17,6 +26,9 @@ export type Message = {
   isStreaming?: boolean;
   toolStatus?: string | null;
   toolLogs?: string[] | null;
+  replacedContent?: string | null;
+  shouldAnimateReplacement?: boolean;
+  attachments?: Attachment[];
 };
 
 export type Conversation = {
